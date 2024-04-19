@@ -24,12 +24,29 @@ public class CatBehaviour : MonoBehaviour
     [SerializeField] Transform mouse;
 
     Vector3 mouseLastKnownPos = Vector3.zero;
+    BehaviorTreeController behaviorTreeController;
 
     // Start is called before the first frame update
     void Start()
     {
         // Load and start navAgent.
         navAgent = GetComponent<UnityEngine.AI.NavMeshAgent>();
+        // Create the AI's behavior tree
+        // Define your behavior tree structure
+        Node behaviorTreeRoot = new Fallback(new List<Node>
+        {
+            new Sequence(new List<Node>
+            {
+                new Condition(ConditionMouseFound),
+                new Action(ChaseMouse)
+            }),
+            new Sequence(new List<Node>
+            {
+                new Condition(ConditionMouseInAttackRange),
+                new Action(CatchMouse)
+            }),
+            new Action(Patrol)
+        });
         Patrol();
 
     }
@@ -37,6 +54,7 @@ public class CatBehaviour : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
+
 
     }
 
@@ -80,7 +98,7 @@ public class CatBehaviour : MonoBehaviour
     }
 
 
-    bool ConditonMouseInAttackRange()
+    bool ConditionMouseInAttackRange()
     {
         // Check whether mouse in close enough to attack it.
         if (Vector3.Distance(transform.position, mouse.position) <= attackRange)
