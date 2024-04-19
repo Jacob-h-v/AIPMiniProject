@@ -14,7 +14,12 @@ public class CatBehaviour : MonoBehaviour
     int waypointIndex = 0;
 
     [Header("Cat Behaviour Modifiers")]
-    [SerializeField] float timeToRotate = 2f, patrolSpeed = 5f, chaseSpeed = 8f, viewRange = 15f, viewAngle = 90f, attackRange = 1f;
+    [SerializeField] float timeToRotate = 2f;
+    [SerializeField] float patrolSpeed = 5f;
+    [SerializeField] float chaseSpeed = 8f;
+    [SerializeField] float  viewRange = 15f;
+    [SerializeField] float  viewAngle = 90f;
+    [SerializeField] float attackRange = 1f;
 
     [Header("References")]
     [SerializeField] LayerMask mouseMask;
@@ -24,38 +29,47 @@ public class CatBehaviour : MonoBehaviour
     [SerializeField] Transform mouse;
 
     Vector3 mouseLastKnownPos = Vector3.zero;
-    BehaviorTreeController behaviorTreeController;
+    [SerializeField] BehaviorTreeController behaviorTreeController;
 
     // Start is called before the first frame update
     void Start()
     {
         // Load and start navAgent.
         navAgent = GetComponent<UnityEngine.AI.NavMeshAgent>();
-        // Create the AI's behavior tree
-        // Define your behavior tree structure
-        Node behaviorTreeRoot = new Fallback(new List<Node>
+        // Create the AI's behavior tree controller
+    behaviorTreeController = new BehaviorTreeController();
+
+    // Define your behavior tree structure
+    Node behaviorTreeRoot = new Fallback(new List<Node>
+    {
+        new Sequence(new List<Node>
         {
-            new Sequence(new List<Node>
+            new Fallback(new List<Node>
             {
                 new Condition(ConditionMouseFound),
                 new Action(ChaseMouse)
             }),
-            new Sequence(new List<Node>
+            new Fallback(new List<Node>
             {
                 new Condition(ConditionMouseInAttackRange),
                 new Action(CatchMouse)
             }),
             new Action(Patrol)
-        });
-        Patrol();
+        })
+    });
+
+    // Start the behavior tree
+    behaviorTreeController.StartBehaviorTree(behaviorTreeRoot);
+
+       // Patrol();
 
     }
 
     // Update is called once per frame
     void Update()
     {
-
-
+        // Keep polling the behavior (it has an internal variable to prevent it from running every node every frame)
+        behaviorTreeController.Tick();
     }
 
     bool ConditionMouseFound()
@@ -133,6 +147,7 @@ public class CatBehaviour : MonoBehaviour
         mouseCaught = true;
         // eatMouse();
         // Win();
+        Debug.Log("Mouse Caught");
 
     }
 

@@ -1,8 +1,8 @@
-using System.Collections;
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 
-public class BehaviorTreeController
+public class BehaviorTreeController : MonoBehaviour
 {
     private Node rootNode;
 
@@ -11,13 +11,9 @@ public class BehaviorTreeController
     [SerializeField] private float tickInterval = 0.5f; // Adjust this value as needed
     private float timer = 0f;
 
-    public BehaviorTreeController(Node rootNode)
+    public void StartBehaviorTree(Node root)
     {
-        this.rootNode = rootNode;
-    }
-
-    public void StartBehaviorTree()
-    {
+        rootNode = root;
         isRunning = true;
     }
 
@@ -93,9 +89,9 @@ public class Sequence : Node
 
 public class Condition : Node
 {
-    private System.Func<bool> condition;
+    private Func<bool> condition;
 
-    public Condition(System.Func<bool> condition)
+    public Condition(Func<bool> condition)
     {
         this.condition = condition;
     }
@@ -109,19 +105,20 @@ public class Condition : Node
 
 public class Action : Node
 {
-    private System.Action action;
+    private System.Action actionDelegate;
 
     public Action(System.Action action)
     {
-        this.action = action;
+        this.actionDelegate = action;
     }
 
     public override NodeState Tick()
     {
-        action();
+        actionDelegate();
         return NodeState.Success;
     }
 }
+
 
 public enum NodeState
 {
