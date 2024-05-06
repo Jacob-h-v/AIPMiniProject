@@ -10,6 +10,7 @@ public class CatBehaviour : MonoBehaviour
     bool mouseCaught = false;
     bool isPatrolling = false;
     bool isChasing = false;
+    bool mouseInViewRange = false;
 
     int waypointIndex = 0;
 
@@ -39,8 +40,29 @@ public class CatBehaviour : MonoBehaviour
         // Create the AI's behavior tree controller
     behaviorTreeController = new BehaviorTreeController();
 
-    // Define your behavior tree structure
+    // Define behavior tree structure
     Node behaviorTreeRoot = new Fallback(new List<Node>
+    {
+        new Sequence(new List<Node>
+        {
+            new Fallback(new List<Node>
+            {
+                new Condition(ConditionMouseFound),
+                new Action(Patrol)
+            }),
+            new Fallback(new List<Node>
+            {
+                new Condition(ConditionMouseInAttackRange),
+                new Action(ChaseMouse)
+            }),
+            new Fallback(new List<Node>
+            {
+                new Condition(ConditionMouseInAttackRange),
+                new Action(CatchMouse)
+            })
+        })
+    });
+    /*Node behaviorTreeRoot = new Fallback(new List<Node>
     {
         new Sequence(new List<Node>
         {
@@ -56,7 +78,7 @@ public class CatBehaviour : MonoBehaviour
             }),
             new Action(Patrol)
         })
-    });
+    });*/
 
     // Start the behavior tree
     behaviorTreeController.StartBehaviorTree(behaviorTreeRoot);
@@ -65,10 +87,10 @@ public class CatBehaviour : MonoBehaviour
 
     }
 
-    // Update is called once per frame
     void Update()
     {
-        // Keep polling the behavior (it has an internal variable to prevent it from running every node every frame)
+        // Keep polling the behaviour tree
+        //(it has an internal variable to prevent it from running every node every frame)
         behaviorTreeController.Tick();
     }
 
@@ -111,7 +133,18 @@ public class CatBehaviour : MonoBehaviour
         }
     }
 
-
+bool ConditionMouseInSightRange()
+{
+    if (Vector3.Distance(transform.position, mouse.position) <= viewRange)
+        {
+            mouseInViewRange = true;
+        }
+        else
+        {
+            mouseInViewRange = false;
+        }
+        return mouseInViewRange;
+}
     bool ConditionMouseInAttackRange()
     {
         // Check whether mouse in close enough to attack it.
