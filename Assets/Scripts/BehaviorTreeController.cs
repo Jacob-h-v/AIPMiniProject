@@ -11,6 +11,11 @@ public class BehaviorTreeController : MonoBehaviour
     [SerializeField] private float tickInterval = 0.5f; // Adjust this value as needed
     private float timer = 0f;
 
+    private void Update()
+    {
+        Tick();
+    }
+
     public void StartBehaviorTree(Node root)
     {
         rootNode = root;
@@ -24,7 +29,7 @@ public class BehaviorTreeController : MonoBehaviour
 
     public void Tick()
     {
-        if (isRunning)
+        if (isRunning && rootNode != null)
         {
             timer += Time.deltaTime;
             if (timer >= tickInterval)
@@ -114,11 +119,18 @@ public class Action : Node
 
     public override NodeState Tick()
     {
-        actionDelegate();
-        return NodeState.Success;
+        try
+        {
+            actionDelegate();
+            return NodeState.Success;
+        }
+        catch (Exception e)
+        {
+            Debug.LogError("Error executing action: " + e.Message);
+            return NodeState.Failure;
+        }
     }
 }
-
 
 public enum NodeState
 {
