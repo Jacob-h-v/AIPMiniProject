@@ -18,99 +18,81 @@ public class CatBehaviour : MonoBehaviour
     [SerializeField] float timeToRotate = 2f;
     [SerializeField] float patrolSpeed = 5f;
     [SerializeField] float chaseSpeed = 8f;
-    [SerializeField] float  viewRange = 15f;
-    [SerializeField] float  viewAngle = 90f;
+    [SerializeField] float viewRange = 15f;
+    [SerializeField] float viewAngle = 90f;
     [SerializeField] float attackRange = 1f;
 
     [Header("References")]
     [SerializeField] LayerMask mouseMask;
     [SerializeField] LayerMask obstacleMask;
-    [SerializeField] UnityEngine.AI.NavMeshAgent navAgent;
+    [SerializeField] NavMeshAgent navAgent;
     [SerializeField] Transform[] waypoints;
     [SerializeField] Transform mouse;
 
     Vector3 mouseLastKnownPos = Vector3.zero;
-    [SerializeField] BehaviorTreeController behaviorTreeController;
+    private BehaviorTreeController behaviorTreeController;
 
-    // Start is called before the first frame update
     void Start()
     {
-        // Load and start navAgent.
-        navAgent = GetComponent<UnityEngine.AI.NavMeshAgent>();
-        // Create the AI's behavior tree controller
-    behaviorTreeController = new BehaviorTreeController();
-
-    // Define behavior tree structure
-    Node behaviorTreeRoot = new Fallback(new List<Node>
-    {
-        new Sequence(new List<Node>
+        // Ensure NavMeshAgent is attached
+        navAgent = GetComponent<NavMeshAgent>();
+        if (navAgent == null)
         {
-            new Fallback(new List<Node>
+            Debug.LogError("NavMeshAgent component is missing on the GameObject.");
+            return;
+        }
+
+        // Initialize BehaviorTreeController using AddComponent
+        behaviorTreeController = gameObject.AddComponent<BehaviorTreeController>();
+
+        // Define behavior tree structure
+        Node behaviorTreeRoot = new Fallback(new List<Node>
+        {
+            new Sequence(new List<Node>
             {
-                new Condition(ConditionMouseFound),
-                new Action(Patrol)
-            }),
-            new Fallback(new List<Node>
-            {
-                new Condition(ConditionMouseInAttackRange),
-                new Action(ChaseMouse)
-            }),
-            new Fallback(new List<Node>
-            {
-                new Condition(ConditionMouseInAttackRange),
-                new Action(CatchMouse)
+                new Fallback(new List<Node>
+                {
+                    new Condition(ConditionMouseFound),
+                    new Action(Patrol)
+                }),
+                new Fallback(new List<Node>
+                {
+                    new Condition(ConditionMouseInAttackRange),
+                    new Action(ChaseMouse)
+                }),
+                new Fallback(new List<Node>
+                {
+                    new Condition(ConditionMouseCaught),
+                    new Action(CatchMouse)
+                })
             })
-        })
-    });
-    /*Node behaviorTreeRoot = new Fallback(new List<Node>
-    {
-        new Sequence(new List<Node>
-        {
-            new Fallback(new List<Node>
-            {
-                new Condition(ConditionMouseFound),
-                new Action(ChaseMouse)
-            }),
-            new Fallback(new List<Node>
-            {
-                new Condition(ConditionMouseInAttackRange),
-                new Action(CatchMouse)
-            }),
-            new Action(Patrol)
-        })
-    });*/
+        });
 
-    // Start the behavior tree
-    behaviorTreeController.StartBehaviorTree(behaviorTreeRoot);
-
-       // Patrol();
-
+        // Start the behavior tree
+        behaviorTreeController.StartBehaviorTree(behaviorTreeRoot);
     }
 
     void Update()
     {
         // Keep polling the behaviour tree
-        //(it has an internal variable to prevent it from running every node every frame)
         behaviorTreeController.Tick();
     }
 
     bool ConditionMouseFound()
     {
         mouseFound = false;
-        // Create an overlap sphere to detect when mouse is close.
         Collider[] isMouseVisible = Physics.OverlapSphere(transform.position, viewRange, mouseMask);
         for (int i = 0; i < isMouseVisible.Length; i++)
         {
-            Transform mouse = isMouseVisible[i].transform;
-            Vector3 directionToMouse = (mouse.position - transform.position).normalized;
-            // If mouse is in the overlap sphere and within the cat's field of view (viewAngle)
-            // and also not behind cover, set mouseFound to true.
+            Transform detectedMouse = isMouseVisible[i].transform;
+            Vector3 directionToMouse = (detectedMouse.position - transform.position).normalized;
             if (Vector3.Angle(transform.forward, directionToMouse) < viewAngle / 2)
             {
-                float distanceToMouse = Vector3.Distance(transform.position, mouse.position);
+                float distanceToMouse = Vector3.Distance(transform.position, detectedMouse.position);
                 if (!Physics.Raycast(transform.position, directionToMouse, distanceToMouse, obstacleMask))
                 {
                     mouseFound = true;
+                    mouseLastKnownPos = detectedMouse.position; // Update last known position
                 }
             }
         }
@@ -119,13 +101,17 @@ public class CatBehaviour : MonoBehaviour
 
     void Patrol()
     {
+        if (waypoints == null || waypoints.Length == 0)
+        {
+            Debug.LogError("No waypoints set for patrolling.");
+            return;
+        }
+
         isPatrolling = true;
         isChasing = false;
         Move(patrolSpeed);
-        // Patrol to next waypoint
-        navAgent.SetDestination(waypoints[waypointIndex].position);
 
-        // When agent approaches current waypoint, select and move to next waypoint.
+        navAgent.SetDestination(waypoints[waypointIndex].position);
         if (navAgent.remainingDistance <= navAgent.stoppingDistance)
         {
             waypointIndex = (waypointIndex + 1) % waypoints.Length;
@@ -133,29 +119,17 @@ public class CatBehaviour : MonoBehaviour
         }
     }
 
-bool ConditionMouseInSightRange()
-{
-    if (Vector3.Distance(transform.position, mouse.position) <= viewRange)
-        {
-            mouseInViewRange = true;
-        }
-        else
-        {
-            mouseInViewRange = false;
-        }
+    bool ConditionMouseInSightRange()
+    {
+        mouseInViewRange = Vector3.Distance(transform.position, mouse.position) <= viewRange;
         return mouseInViewRange;
-}
+    }
+
     bool ConditionMouseInAttackRange()
     {
-        // Check whether mouse in close enough to attack it.
-        if (Vector3.Distance(transform.position, mouse.position) <= attackRange)
-        {
-            mouseInAttackRange = true;
-        }
-        else
-        {
-            mouseInAttackRange = false;
-        }
+        float distanceToMouse = Vector3.Distance(transform.position, mouse.position);
+        Debug.Log($"Mouse Distance: {distanceToMouse}, Attack Range: {attackRange}");
+        mouseInAttackRange = distanceToMouse <= attackRange;
         return mouseInAttackRange;
     }
 
@@ -164,9 +138,7 @@ bool ConditionMouseInSightRange()
         isChasing = true;
         isPatrolling = false;
         Move(chaseSpeed);
-        // Set destination to mouse's last known position
         navAgent.SetDestination(mouseLastKnownPos);
-
     }
 
     bool ConditionMouseCaught()
@@ -178,14 +150,9 @@ bool ConditionMouseInSightRange()
     {
         Stop();
         mouseCaught = true;
-        // eatMouse();
-        // Win();
         Debug.Log("Mouse Caught");
-
     }
 
-
-    // navAgent functionality
     void Move(float speed)
     {
         navAgent.isStopped = false;
@@ -197,5 +164,4 @@ bool ConditionMouseInSightRange()
         navAgent.isStopped = true;
         navAgent.speed = 0;
     }
-
 }

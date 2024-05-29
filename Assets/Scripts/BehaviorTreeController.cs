@@ -57,6 +57,7 @@ public class Fallback : Node
 
     public override NodeState Tick()
     {
+        Debug.Log("Fallback Tick called. Number of children: " + children.Count);
         foreach (Node child in children)
         {
             NodeState childState = child.Tick();
@@ -80,6 +81,7 @@ public class Sequence : Node
 
     public override NodeState Tick()
     {
+        Debug.Log("Sequence Tick called. Number of children: " + children.Count);
         foreach (Node child in children)
         {
             NodeState childState = child.Tick();
@@ -121,12 +123,13 @@ public class Action : Node
     {
         try
         {
+            Debug.Log("Action Tick called");
             actionDelegate();
             return NodeState.Success;
         }
         catch (Exception e)
         {
-            Debug.LogError("Error executing action: " + e.Message);
+            Debug.LogError("Error executing action: " + e.Message + "\n" + e.StackTrace);
             return NodeState.Failure;
         }
     }
