@@ -8,23 +8,21 @@ public class MouseBehaviour : MonoBehaviour
     public Transform catTransform; // Reference to the cat's transform
     public float safeDistance = 10f; // The distance at which the mouse is considered safe
     public bool isSafe = true;
-    
-    
+    public float recalculateCooldown = 1f; // Cooldown period in seconds
+
     private bool cheeseFound = false;
     private bool cheeseClose = false;
     private bool collected = false;
-
-    // Reference to the NavMeshAgent component
     private NavMeshAgent agent;
+    private float lastRecalculateTime;
 
     void Start()
     {
         agent = GetComponent<NavMeshAgent>();
+        lastRecalculateTime = Time.time;
     }
-
     void Update()
     {
-
         float distanceToCat = Vector3.Distance(transform.position, catTransform.position);
         if (distanceToCat <= safeDistance)
         {
@@ -34,7 +32,6 @@ public class MouseBehaviour : MonoBehaviour
         {
             isSafe = true; // The mouse is safe
         }
-
 
         if (isSafe)
         {
@@ -57,27 +54,28 @@ public class MouseBehaviour : MonoBehaviour
         }
         else
         {
-            EscapeFromCat();
+            if (Time.time >= lastRecalculateTime + recalculateCooldown)
+            {
+                EscapeFromCat();
+                lastRecalculateTime = Time.time;
+            }
         }
     }
-
 
     void FindCheese()
     {
         GameObject nearestCheese = FindNearestCheese();
-        if (nearestCheese != null && IsCheeseVisible(nearestCheese))
+        if (nearestCheese != null && IsCheeseVisibleAndNotBlockedByCat(nearestCheese))
         {
             agent.SetDestination(nearestCheese.transform.position);
             cheeseFound = true;
         }
     }
 
-
-
     void ApproachCheese()
     {
         GameObject nearestCheese = FindNearestCheese();
-        if (nearestCheese != null)
+        if (nearestCheese != null && IsCheeseVisibleAndNotBlockedByCat(nearestCheese))
         {
             float distanceToCheese = Vector3.Distance(transform.position, nearestCheese.transform.position);
             if (distanceToCheese <= agent.stoppingDistance)
@@ -91,12 +89,10 @@ public class MouseBehaviour : MonoBehaviour
         }
     }
 
-
     void CollectCheese()
     {
         if (cheeseClose)
         {
-            // Assuming you have a method to collect the cheese
             CollectCheeseAtPosition(agent.destination);
             collected = true;
         }
@@ -104,31 +100,65 @@ public class MouseBehaviour : MonoBehaviour
 
     void CollectCheeseAtPosition(Vector3 position)
     {
-        // Assuming the cheese object is at the destination position
         GameObject cheese = GameObject.FindGameObjectWithTag("Cheese");
         if (cheese != null)
         {
             Cheese cheeseScript = cheese.GetComponent<Cheese>();
             if (cheeseScript != null && !cheeseScript.isCollected)
             {
-                // Call the OnCollected method on the Cheese script
                 cheeseScript.OnCollected();
             }
         }
     }
 
 
-
-
     void EscapeFromCat()
     {
-        // Example: Set a random destination within a safe area
-        Vector3 safeAreaCenter = new Vector3(0, 0, 0); // Adjust this to your safe area's center
-        Vector3 randomDirection = Random.insideUnitSphere * 10; // Adjust the range as needed
-        Vector3 safeDestination = safeAreaCenter + randomDirection;
-        agent.SetDestination(safeDestination);
-    }
+        // Calculate the direction away from the cat
+        Vector3 directionAwayFromCat = transform.position - catTransform.position;
 
+        // Normalize the direction vector
+        Vector3 normalizedDirection = directionAwayFromCat.normalized;
+
+        // Predict the cat's future position based on its current velocity
+        // Assuming the cat has a Rigidbody component attached and is using physics-based movement
+        Vector3 predictedCatPosition = catTransform.position + catTransform.GetComponent<Rigidbody>().velocity * 2f; // Adjust the multiplier as needed
+
+        // Calculate the new escape direction considering the cat's predicted position
+        Vector3 escapeDirection = (transform.position - predictedCatPosition).normalized * safeDistance;
+
+        // Attempt to find the best destination within a safe distance
+        int attempts = 10;
+        Vector3 bestDestination = transform.position;
+        float maxDistance = 0f;
+
+        for (int i = 0; i < attempts; i++)
+        {
+            // Generate a random offset around the escape direction
+            Vector3 randomOffset = Random.insideUnitSphere * safeDistance;
+
+            // Calculate a candidate position for the mouse to move to
+            Vector3 candidatePosition = transform.position + escapeDirection + randomOffset;
+
+            // Check if the candidate position is valid on the NavMesh
+            NavMeshHit hit;
+            if (NavMesh.SamplePosition(candidatePosition, out hit, safeDistance, NavMesh.AllAreas))
+            {
+                // Calculate the distance from the candidate position to the cat's predicted position
+                float distanceToPredictedCatPosition = Vector3.Distance(hit.position, predictedCatPosition);
+
+                // Update the best destination if the candidate position is further away from the cat's predicted position
+                if (distanceToPredictedCatPosition > maxDistance)
+                {
+                    maxDistance = distanceToPredictedCatPosition;
+                    bestDestination = hit.position;
+                }
+            }
+        }
+
+        // Set the mouse's destination to the best calculated escape position
+        agent.SetDestination(bestDestination);
+    }
 
 
     GameObject FindNearestCheese()
@@ -150,7 +180,7 @@ public class MouseBehaviour : MonoBehaviour
         return nearestCheese;
     }
 
-    bool IsCheeseVisible(GameObject cheese)
+    bool IsCheeseVisibleAndNotBlockedByCat(GameObject cheese)
     {
         Vector3 directionToCheese = cheese.transform.position - transform.position;
         RaycastHit hit;
@@ -158,19 +188,31 @@ public class MouseBehaviour : MonoBehaviour
         {
             if (hit.collider.gameObject == cheese)
             {
+                // Additional check to ensure the cat is not blocking the path to the cheese
+                Vector3 directionToCat = catTransform.position - transform.position;
+                RaycastHit catHit;
+                if (Physics.Raycast(transform.position, directionToCat, out catHit, Mathf.Infinity))
+                {
+                    if (catHit.collider.gameObject == catTransform.gameObject)
+                    {
+                        // Cat is in the way, so cheese is considered not visible
+                        return false;
+                    }
+                }
                 return true;
             }
         }
         return false;
     }
 
-
     void MoveRandomly()
     {
         Vector3 randomDirection = Random.insideUnitSphere * 10; // Adjust the range as needed
         Vector3 randomDestination = transform.position + randomDirection;
-        agent.SetDestination(randomDestination);
+        NavMeshHit hit;
+        if (NavMesh.SamplePosition(randomDestination, out hit, 10f, NavMesh.AllAreas))
+        {
+            agent.SetDestination(hit.position);
+        }
     }
-
-
 }
