@@ -30,4 +30,12 @@ public class Cheese : MonoBehaviour
         gameObject.tag = cheeseTag;
     }
 
+    void OnCollisionEnter(Collision collision)
+    {
+        if (collision.gameObject.CompareTag("mousetag"))
+        {
+            Destroy(gameObject);
+            Debug.Log("Cheese Hit");
+        }
+    }
 }
